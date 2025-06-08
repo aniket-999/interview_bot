@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import os
 import json
 import pdfplumber
+import re
 
 load_dotenv()
 
@@ -55,41 +56,42 @@ Resume Text:
 
 def extract_resume_data_with_gpt(resume_text):
     prompt = f"""
-You are a helpful assistant. Extract structured data from the following resume text.
+        You are a helpful assistant. Extract structured data from the following resume text.
 
-Return only valid JSON with **any** of these fields (only include those present in the text):
-- name
-- summary
-- skills (list of strings)
-- education (list of dicts: degree, field, year)
-- work_experience (list of dicts: role, company, duration)
-- projects (list of dicts: title, description)
-- certifications (list of strings)
-- achievements (list of strings)
+        Return valid JSON with these fields (omit if not available):
+        - name
+        - summary
+        - skills (list of strings)
+        - education (list of dicts: degree, field, year)
+        - work_experience (list of dicts: role, company, duration)
+        - projects (list of dicts: title, description)
+        - certifications (list of strings)
+        - achievements (list of strings)
 
-Resume Text:
-\"\"\"{resume_text}\"\"\"
-"""
+        Resume Text:
+        \"\"\"{resume_text}\"\"\"
+    """
+
+    response = client.chat.completions.create(
+        model="llama3-70b-8192",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    raw_output = response.choices[0].message.content.strip()
+
+    # 🧼 Strip out any wrapping markdown/code blocks or extra text
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", raw_output, re.DOTALL)
+    if match:
+        cleaned = match.group(1)
+    else:
+        # fallback: try parsing whole response if no code block
+        cleaned = raw_output
 
     try:
-        response = client.chat.completions.create(
-            model="llama3-70b-8192",  # For Groq
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2
-        )
-        raw_output = response.choices[0].message.content.strip()
-        data = json.loads(raw_output)
-
-        if not isinstance(data, dict) or not data:
-            print("⚠️ GPT returned empty or malformed JSON.")
-            return None
-
-        return data
-
-    except json.JSONDecodeError:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as e:
         print("⚠️ GPT returned invalid JSON:")
         print(raw_output)
-        return None
-    except Exception as e:
-        print("❌ Error during GPT call:", e)
+        print(f"Error: {e}")
         return None
