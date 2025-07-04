@@ -1,24 +1,16 @@
-from resume_parser import extract_text_from_pdf, extract_resume_data_with_gpt
-from question_generator import generate_questions
-print("🧪 This is the latest main.py")
-pdf_path = "/mnt/d/interview_bot/interview_bot/resume.pdf"
+from resume_parser import extract_text_from_pdf, extract_resume_data
+from question_generator import generate_base_question, generate_followup_question
+from interaction_engine import run_interaction
 
-print(f"printing pdf_path: {pdf_path}")
-print("🔍 Extracting text from resume...")
+pdf_path = "resume.pdf"
+
+# Step 1: Extract resume data
 resume_text = extract_text_from_pdf(pdf_path)
+resume_data = extract_resume_data(resume_text)
 
-print("🤖 Sending resume to GPT for parsing...")
-resume_data = extract_resume_data_with_gpt(resume_text)
+# Step 2: Begin dynamic questioning
+question = generate_base_question(resume_data)
 
-if resume_data:
-    # print("\n✅ Extracted Resume Data:")
-    # for key, value in resume_data.items():
-    #     print(f"{key}:\n{value}\n")
-
-    print("🎯 Generating interview questions...")
-    questions = generate_questions(resume_data)
-    print("\n📋 Interview Questions:\n")
-    print(questions)
-
-else:
-    print("❌ Could not extract useful data.")
+while question:
+    followup = run_interaction(question, resume_data, generate_followup_question)
+    question = followup  # if None, we move to next base question or end
